@@ -53,22 +53,6 @@ ex: Go time! -> Goo tiimmmeeee!!!!!
 [strings](https://pkg.go.dev/strings)
 
 ```go
-package main
-
-import (
-	"log"
-	"strings"
-	"time"
-)
-
-const delay = 700 * time.Millisecond
-
-// print outputs a message and then sleeps for a pre-determined amount
-func print(msg string) {
-	log.Println(msg)
-	time.Sleep(delay)
-}
-
 // slowDown takes the given string and repeats its characters
 // according to their index in the string.
 func slowDown(msg string) {
@@ -85,9 +69,68 @@ func slowDown(msg string) {
 	}
 
 }
+```
 
-func main() {
-	msg := "Time to learn about Go strings!"
-	slowDown(msg)
+### Raffle winner
+
+[json](https://pkg.go.dev/encoding/json)
+[Marshal](https://pkg.go.dev/encoding/json#example-Marshal)
+
+```go
+// importData reads the raffle entries from file and creates the entries slice.
+func importData() []raffleEntry {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatalf("failed reading data from file: %s", err)
+	}
+
+	var data []raffleEntry
+	err = json.Unmarshal(file, &data)
+	if err != nil {
+		log.Fatalf("failed unmarshaling data: %s", err)
+	}
+
+	return data
+}
+```
+
+### Calculate change
+
+```go
+// calculateChange returns the coins required to calculate the
+func calculateChange(amount float64) map[coin]int {
+	change := make(map[coin]int)
+	for _, c := range coins {
+		if amount >= c.value {
+			count := math.Floor(amount / c.value)
+			amount -= count * c.value
+			change[c] = int(count)
+		}
+	}
+	return change
+}
+```
+
+### The big sale
+
+[sort](https://pkg.go.dev/sort)
+
+```go
+// matchSales adds the sales procentage of the item
+// and sorts the array accordingly.
+func matchSales(budget float64, items []SaleItem) []SaleItem {
+	var mi []SaleItem
+	for _, item := range items {
+		if item.ReducedPrice <= budget {
+			item.SalePercentage = ((item.OriginalPrice - item.ReducedPrice) / item.OriginalPrice) * 100
+		}
+		mi = append(mi, item)
+	}
+
+	sort.Slice(mi, func(i, j int) bool {
+		return mi[i].SalePercentage > mi[j].SalePercentage
+	})
+
+	return mi
 }
 ```

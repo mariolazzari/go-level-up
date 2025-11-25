@@ -134,3 +134,29 @@ func matchSales(budget float64, items []SaleItem) []SaleItem {
 	return mi
 }
 ```
+
+### Biggest market
+
+```go
+func getBiggestMarket(users []User) (string, int) {
+	cMap := make(map[string]int)
+
+	for _, u := range users {
+		cMap[u.Country]++
+	}
+
+	var country string
+	var max int
+
+	for k, v := range cMap {
+		if v > max {
+			country = k
+			max = v
+		}
+	}
+
+	return country, max
+}
+```
+
+###

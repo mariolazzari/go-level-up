@@ -258,3 +258,288 @@ func main() {
 ```sh
 go run main.go -expr="(a + b) * [c - d]"
 ```
+
+### Spread gossip
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"math/rand"
+	"os"
+	"time"
+)
+
+const path = "friends.json"
+
+// Friend represents a friend and their connections.
+type Friend struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Friends []string `json:"friends"`
+}
+
+// hearGossip indicates that the friend has heard the gossip.
+func (f *Friend) hearGossip() {
+	log.Printf("%s has heard the gossip!\n", f.Name)
+}
+
+// Friends represents the map of friends and connections
+type Friends struct {
+	fmap map[string]Friend
+}
+
+// getFriend fetches the friend given an id.
+func (f *Friends) getFriend(id string) Friend {
+	return f.fmap[id]
+}
+
+// getRandomFriend returns an random friend.
+func (f *Friends) getRandomFriend() Friend {
+	rand.Seed(time.Now().Unix())
+	id := (rand.Intn(len(f.fmap)-1) + 1) * 100
+	return f.getFriend(fmt.Sprint(id))
+}
+
+// spreadGossip ensures that all the friends in the map have heard the news
+func spreadGossip(root Friend, friends Friends,
+	visited map[string]struct{}) {
+	for _, id := range root.Friends {
+		if _, isVisited := visited[id]; !isVisited {
+			f := friends.getFriend(id)
+			f.hearGossip()
+			visited[id] = struct{}{}
+			spreadGossip(f, friends, visited)
+		}
+	}
+}
+
+func main() {
+	friends := importData()
+	root := friends.getRandomFriend()
+	root.hearGossip()
+	visited := make(map[string]struct{})
+	visited[root.ID] = struct{}{}
+	spreadGossip(root, friends, visited)
+}
+
+// importData reads the input data from file and creates the friends map.
+func importData() Friends {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var data []Friend
+	err = json.Unmarshal(file, &data)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fm := make(map[string]Friend, len(data))
+	for _, d := range data {
+		fm[d.ID] = d
+	}
+
+	return Friends{
+		fmap: fm,
+	}
+}
+```
+
+### Playist
+
+[container](https://pkg.go.dev/container)
+
+```go
+package main
+
+import (
+	"container/heap"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"text/tabwriter"
+)
+
+const path = "songs.json"
+
+// Song stores all the song related information
+type Song struct {
+	Name      string `json:"name"`
+	Album     string `json:"album"`
+	PlayCount int64  `json:"play_count"`
+
+	AlbumCount, SongCount int
+}
+
+// An PlaylistHeap is a max-heap of PlaylistEntries.
+type PlaylistHeap []Song
+
+func (h PlaylistHeap) Len() int {
+	return len(h)
+}
+func (h PlaylistHeap) Less(i, j int) bool {
+	// We want Pop to return the highest play count.
+	return h[i].PlayCount > h[j].PlayCount
+}
+func (h PlaylistHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *PlaylistHeap) Push(x any) {
+	*h = append(*h, x.(Song))
+}
+
+func (h *PlaylistHeap) Pop() any {
+	original := *h
+	n := len(original)
+	x := original[n-1]
+	*h = original[0 : n-1]
+	return x
+}
+
+// makePlaylist makes the merged sorted list of songs
+func makePlaylist(albums [][]Song) []Song {
+	var playlist []Song
+	pHeap := &PlaylistHeap{}
+	if len(albums) == 0 {
+		return playlist
+	}
+
+	// initialize the heap and add first of each album, since they are the max
+	heap.Init(pHeap)
+	for i, f := range albums {
+		firstSong := f[0]
+		firstSong.AlbumCount, firstSong.SongCount = i, 0
+		heap.Push(pHeap, firstSong)
+	}
+
+	for pHeap.Len() != 0 {
+		// take max elem from the list
+		p := heap.Pop(pHeap)
+		song := p.(Song)
+		playlist = append(playlist, song)
+		// the next song after the max is a good candidate to look at
+		if song.SongCount < len(albums[song.AlbumCount])-1 {
+			nextSong := albums[song.AlbumCount][song.SongCount+1]
+			nextSong.AlbumCount, nextSong.SongCount =
+				song.AlbumCount, song.SongCount+1
+			heap.Push(pHeap, nextSong)
+		}
+	}
+
+	return playlist
+}
+
+func main() {
+	albums := importData()
+	printTable(makePlaylist(albums))
+}
+
+// printTable prints merged playlist as a table
+func printTable(songs []Song) {
+	w := tabwriter.NewWriter(os.Stdout, 3, 3, 3, ' ', tabwriter.TabIndent)
+	fmt.Fprintln(w, "####\tSong\tAlbum\tPlay count")
+	for i, s := range songs {
+		fmt.Fprintf(w, "[%d]:\t%s\t%s\t%d\n", i+1, s.Name, s.Album, s.PlayCount)
+	}
+	w.Flush()
+
+}
+
+// importData reads the input data from file and creates the friends map
+func importData() [][]Song {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var data [][]Song
+	err = json.Unmarshal(file, &data)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return data
+}
+```
+
+### Calcultor edge cases
+
+```go
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+)
+
+// operators is the map of legal operators and their functions
+var operators = map[string]func(x, y float64) float64{
+	"+": func(x, y float64) float64 { return x + y },
+	"-": func(x, y float64) float64 { return x - y },
+	"*": func(x, y float64) float64 { return x * y },
+	"/": func(x, y float64) float64 { return x / y },
+}
+
+// parseOperand parses a string to a float64
+func parseOperand(op string) (*float64, error) {
+	parsedOp, err := strconv.ParseFloat(op, 64)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse:%v", err)
+	}
+
+	return &parsedOp, nil
+}
+
+// calculate returns the result of a 2 operand mathematical expression
+func calculate(expr string) (*float64, error) {
+	ops := strings.Fields(expr)
+	nops := len(ops)
+	if nops != 3 {
+		return nil, fmt.Errorf("cannot calculate: need 3 ops, got %d", nops)
+	}
+	left, err := parseOperand(ops[0])
+	if err != nil {
+		return nil, err
+	}
+	right, err := parseOperand(ops[2])
+	if err != nil {
+		return nil, err
+	}
+	f, ok := operators[ops[1]]
+	if !ok {
+		return nil, fmt.Errorf("cannot calculate: %s is unknown", ops[1])
+	}
+
+	result := f(*left, *right)
+	return &result, nil
+}
+
+func main() {
+	expr := flag.String("expr", "",
+		"The expression to calculate on, separated by spaces.")
+	flag.Parse()
+	result, err := calculate(*expr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%s = %.2f\n", *expr, *result)
+}
+```
+
+## Concurrency challenges
+
+### Stop copying me
+
+```go
+
+```
